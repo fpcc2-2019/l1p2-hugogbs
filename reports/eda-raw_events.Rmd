@@ -1,6 +1,8 @@
 ---
 title: "EDA do log de eventos"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ## O quê
@@ -28,7 +30,22 @@ events = events %>%
     ungroup()
 ```
 
+## por grupo
+
+```{r}
+events %>%
+    count(group) %>% 
+    ggplot(aes(x=group, y=n)) +
+    geom_bar(stat="identity")
+```
+
+
 ## No tempo
+```{r}
+events %>% 
+    mutate(date = round_date(date, unit = "day")) %>% 
+    count(date) %>% View()
+```
 
 
 ```{r}
@@ -39,6 +56,82 @@ events %>%
     geom_area()
 ```
 
-## Por tipo
 
-## Etc.
+## Por hora
+
+```{r}
+events %>% 
+    mutate(date = round_date(date, unit = "hour")) %>%
+    count(date, group) %>%
+    ggplot(aes(x = date, y = n, fill = group, color=group)) + 
+    geom_line() +
+    geom_point()
+```
+```{r}
+events %>% 
+    mutate(date = round_date(date, unit = "hour"),
+           weekday = wday(date),
+           isWeekend = ifelse(weekday %in% c(1,7), TRUE, FALSE),
+           hour = as.integer(substr(date, 11, 13))) %>%
+    count(hour, group, isWeekend) %>%
+    ggplot(aes(x = hour, y = n, color=isWeekend)) + 
+    geom_line() +
+    geom_point() +
+    facet_wrap(group~.)
+```
+
+
+## Por tipo
+```{r}
+events %>%
+    ggplot(aes(x=action, fill=group)) +
+    geom_bar(position = "dodge")
+```
+
+```{r}
+events %>%
+    ggplot(aes(x=action, fill=group)) +
+    geom_bar(position = "fill")
+```
+
+```{r}
+events %>% 
+    mutate(date = round_date(date, unit = "day")) %>% 
+    count(date, action) %>% 
+    ggplot(aes(x = date, y = n, fill = action)) + 
+    geom_area()
+```
+```{r}
+events %>% 
+    mutate(date = round_date(date, unit = "day")) %>% 
+    count(date, action) %>% 
+    ggplot(aes(x = date, y = n, color = action)) + 
+    geom_line() +
+    geom_point()
+```
+
+
+## Number of Results
+
+```{r}
+events %>%
+    filter(n_results <=20) %>%
+    ggplot(aes(x=n_results)) +
+    geom_bar()
+```
+
+```{r}
+events %>%
+    filter(n_results >20) %>%
+    ggplot(aes(x=n_results)) +
+    geom_histogram(binwidth = 10)
+```
+## Result position
+
+```{r}
+events %>%
+    filter(result_position<20) %>%
+    ggplot(aes(x=result_position)) +
+    geom_bar()
+```
+
