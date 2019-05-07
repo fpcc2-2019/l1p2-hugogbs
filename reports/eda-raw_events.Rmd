@@ -34,7 +34,7 @@ events = events %>%
 
 ```{r}
 events %>%
-    count(group) %>% 
+    count(group) %>%
     ggplot(aes(x=group, y=n)) +
     geom_bar(stat="identity")
 ```
@@ -67,6 +67,7 @@ events %>%
     geom_line() +
     geom_point()
 ```
+
 ```{r}
 events %>% 
     mutate(date = round_date(date, unit = "hour"),
@@ -101,6 +102,7 @@ events %>%
     ggplot(aes(x = date, y = n, fill = action)) + 
     geom_area()
 ```
+
 ```{r}
 events %>% 
     mutate(date = round_date(date, unit = "day")) %>% 

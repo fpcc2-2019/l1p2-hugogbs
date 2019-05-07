@@ -1,0 +1,102 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(lubridate)
+theme_set(theme_bw())
+```
+
+
+```{r ETL}
+buscas = read_csv(here::here("data/search_data.csv"))
+```
+
+## Visão Geral dos Dados
+
+```{r}
+buscas %>% 
+    ggplot(aes(x = results)) + 
+    geom_histogram(binwidth = 5) 
+```
+
+
+## What is our daily overall clickthrough rate? How does it vary between the groups?
+
+```{r}
+buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           hasClick = ifelse(num_clicks > 0, 1, 0)) %>%
+    group_by(date, session_id) %>%
+    summarise(hasClick = sum(hasClick)) %>% 
+    group_by(date) %>%
+    summarise(clickRate = sum(hasClick)/n()) %>% 
+    ggplot(aes(x=date, y=clickRate)) +
+    geom_line() +
+    geom_point()
+```
+
+```{r}
+buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           hasClick = ifelse(num_clicks > 0, 1, 0)) %>%
+    group_by(group, date, session_id) %>%
+    summarise(hasClick = sum(hasClick)) %>% 
+    group_by(group, date) %>%
+    summarise(clickRate = sum(hasClick)/n()) %>% 
+    ggplot(aes(x=date, y=clickRate, color=group)) +
+    geom_line() +
+    geom_point()
+```
+
+```{r}
+buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           hasClick = ifelse(num_clicks > 0, 1, 0)) %>%
+    group_by(group, session_id, date) %>%
+    summarise(clickRate = sum(hasClick)/n()) %>%
+    group_by(group, date) %>%
+    summarise(mean=mean(clickRate), sum = sum(clickRate)) %>%
+    ggplot(aes(x=date, y=mean, color=group)) +
+    geom_line() +
+    geom_point()
+```
+
+
+## Which results do people tend to try first? How does it change day-to-day?
+
+## What is our daily overall zero results rate? How does it vary between the groups?
+```{r}
+buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           isZero= ifelse(results > 0, 0, 1)) %>%
+    group_by(date, session_id) %>%
+    summarise(isZero = sum(isZero)) %>% 
+    group_by(date) %>%
+    summarise(zeroResults = sum(isZero)/n()) %>% 
+    ggplot(aes(x=date, y=zeroResults)) +
+    geom_line() +
+    geom_point()
+```
+
+```{r}
+buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           isZero= ifelse(results > 0, 0, 1)) %>%
+    group_by(group, date, session_id) %>%
+    summarise(isZero = sum(isZero)) %>% 
+    group_by(group, date) %>%
+    summarise(zeroResults = sum(isZero)/n()) %>% 
+    ggplot(aes(x=date, y=zeroResults, color=group)) +
+    geom_line() +
+    geom_point()
+```
+
+
+## Let session length be approximately the time between the first event and the last event in a session. Choose a variable from the dataset and describe its relationship to session length. Visualize the relationship.
+

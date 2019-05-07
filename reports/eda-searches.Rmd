@@ -18,13 +18,14 @@ theme_set(theme_bw())
 buscas = read_csv(here::here("data/search_data.csv"))
 ```
 
+
+## Visão Geral dos Dados
+
 ```{r}
 buscas %>% 
     ggplot(aes(x = results)) + 
     geom_histogram(binwidth = 5) 
 ```
-
-## Visão Geral dos Dados
 
 ## What is our daily overall clickthrough rate? How does it vary between the groups?
 
