@@ -1,5 +1,6 @@
 ---
-title: "Untitled"
+title: "Sessões, buscas e navegação na wikimedia"
+author: "Hugo Gabriel"
 output: html_document
 ---
 
@@ -13,90 +14,143 @@ theme_set(theme_bw())
 ```
 
 
-```{r ETL}
+```{r ETL, include=FALSE}
 buscas = read_csv(here::here("data/search_data.csv"))
 ```
 
-## Visão Geral dos Dados
+## Qual o clickthrough rate diário? Como ele varia entre os grupos?
+
+O _clickthrough rate_ é dado pela razão entre o número de sessões em que pelo menos um página foi visitada e o número total de sessões. As visualizações abaixo buscam nos ajudar a compreender o comportamento desta variável ao longo do tempo.
 
 ```{r}
-buscas %>% 
-    ggplot(aes(x = results)) + 
-    geom_histogram(binwidth = 5) 
-```
 
-
-## What is our daily overall clickthrough rate? How does it vary between the groups?
-
-```{r}
-buscas %>%
+clickRateData <- buscas %>%
     mutate(date = round_date(session_start_date, unit = "day"),
            hasClick = ifelse(num_clicks > 0, 1, 0)) %>%
     group_by(date, session_id) %>%
     summarise(hasClick = sum(hasClick)) %>% 
     group_by(date) %>%
-    summarise(clickRate = sum(hasClick)/n()) %>% 
+    summarise(clickRate = sum(hasClick)/n())
+
+clickRateData %>%
     ggplot(aes(x=date, y=clickRate)) +
     geom_line() +
-    geom_point()
+    geom_point() +
+    ylim(0,1) +
+    labs(x = "Data", y = "Clickthrough Rate", title="Taxa de cliques diária")
+
 ```
 
+Percebemos que a taixa de cliques ( _clickthrough rate_ ) não apresenta variações bruscas entre os dias observados, a média observada é `r round(mean(clickRateData$clickRate), 2)`, o que indica que aproximadamente metade das sessões retorna pelo menos um resultado de interesse do usuário; Por outro lado esse resultado pode ser lido como: aproximadamente metade das sessões não retorna nenhum resultado de interesse.
+
 ```{r}
-buscas %>%
+
+clickRateGroupData <- buscas %>%
     mutate(date = round_date(session_start_date, unit = "day"),
            hasClick = ifelse(num_clicks > 0, 1, 0)) %>%
     group_by(group, date, session_id) %>%
     summarise(hasClick = sum(hasClick)) %>% 
     group_by(group, date) %>%
-    summarise(clickRate = sum(hasClick)/n()) %>% 
+    summarise(clickRate = sum(hasClick)/n())
+
+clickRateGroupData %>%
     ggplot(aes(x=date, y=clickRate, color=group)) +
     geom_line() +
-    geom_point()
+    geom_point() +
+    ylim(0,1) +
+    labs(x = "Data", y = "Clickthrough Rate", title="Taxa de cliques diária", subtitle="Por Grupo", color="Grupo")
 ```
+
+Diferenciando a taixa de cliques por grupos, podemos ver delineado comportamentos bastantes distintos desta variável. Enquanto o grupo A apresenta um _clickthrough rate_ de `r round(mean((clickRateGroupData %>% filter(group=="a"))$clickRate), 2)` o grupo B tem `r round(mean((clickRateGroupData %>% filter(group=="b"))$clickRate), 2)`. Mesmo com essa diferenciação o comportamento observado, na visão geral, se repete e a taxa de cliques não varia muito de um dia para outro em nemhum dos grupos.
+
+## Em que resultados a pessoa tende a clicar primeiro? Como isso varia através do tempo?
 
 ```{r}
 buscas %>%
-    mutate(date = round_date(session_start_date, unit = "day"),
-           hasClick = ifelse(num_clicks > 0, 1, 0)) %>%
-    group_by(group, session_id, date) %>%
-    summarise(clickRate = sum(hasClick)/n()) %>%
-    group_by(group, date) %>%
-    summarise(mean=mean(clickRate), sum = sum(clickRate)) %>%
-    ggplot(aes(x=date, y=mean, color=group)) +
-    geom_line() +
-    geom_point()
+    filter(!is.na(first_click)) %>%
+    ggplot(aes(x=first_click)) +
+    geom_histogram(binwidth = 10) +
+    labs(x = "ID do Resultado", y = "Nº de cliques", title="Resutados clicados primeiro")
+
+fClick <- (buscas %>%
+    filter(!is.na(first_click)))$first_click
 ```
+Através do gráfico acima percebemos que na grande maioria das buscas o usuário clica nos primeiros resultados, mas esse comportamento já era esperado.
 
+Temos que o 95-percentil para o primeiro clique é `r quantile(fClick, c(.95))`, ou seja em 95% das buscas o usuário clica primeiro num resultado na `r quantile(fClick, c(.95))`ª posição ou menor.
 
-## Which results do people tend to try first? How does it change day-to-day?
-
-## What is our daily overall zero results rate? How does it vary between the groups?
 ```{r}
-buscas %>%
-    mutate(date = round_date(session_start_date, unit = "day"),
-           isZero= ifelse(results > 0, 0, 1)) %>%
-    group_by(date, session_id) %>%
-    summarise(isZero = sum(isZero)) %>% 
+perc95Data <- buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day")) %>%
+    filter(!is.na(first_click)) %>%
     group_by(date) %>%
-    summarise(zeroResults = sum(isZero)/n()) %>% 
-    ggplot(aes(x=date, y=zeroResults)) +
-    geom_line() +
-    geom_point()
+    summarise(perc95 = quantile(first_click, .95))
+
+median95perc <- median(perc95Data$perc95)
+
+perc95Data %>%
+    ggplot(aes(x=date, y=perc95)) +
+    geom_line(color="darkred") +
+    geom_point(color="darkred") +
+    geom_hline(yintercept = median95perc, linetype='dashed') +
+    geom_label(aes(x=as.POSIXct("2016-03-08"), y=median95perc+.3, label=paste("Mediana: ", median95perc)), color="darkblue") +
+    labs(x = "Data", y = "95-percentil", title="Resutados clicados primeiro", subtitle="Por dia")
+
 ```
+
+O gráfico acima mostra o 95-percentil do _first click_ por dia e com eles podemos ver que a variação não é muito grande de um dia para o outro, sendo que o menor 95-percentil é `r min(perc95Data$perc95)` e o maior é `r max(perc95Data$perc95)` o que nos dá ainda mais evidências que a imensa maioria dos usuários, quando clica, clica nos primeiros resultados da busca, independentemente do dia.
+
+## Qual o zero results rate diário geral? Como ele varia entre os grupos?
+
+```{r}
+zeroResultsData <- buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           zeroResult= ifelse(results > 0, 0, 1)) %>%
+    group_by(date) %>%
+    summarise(zeroResult = sum(zeroResult)/n())
+
+zeroResultsData %>%
+    ggplot(aes(x=date, y=zeroResult)) +
+    geom_line() +
+    geom_point() +
+    ylim(0,1) +
+    labs(x = "Data", y = "zero results rate", title="Buscas sem resultado")
+```
+
+Percebemos que não há grande variação o _zero results rate_ para os dias estudados, tem-se uma taixa baixa para todos dos dias. A média é de `r round(mean(zeroResultsData$zeroResult),2)`.
+
+```{r}
+zeroResultsGroupData <- buscas %>%
+    mutate(date = round_date(session_start_date, unit = "day"),
+           zeroResult= ifelse(results > 0, 0, 1)) %>%
+    group_by(date, group) %>%
+    summarise(zeroResult = sum(zeroResult)/n())
+
+zeroResultsGroupData %>%
+    ggplot(aes(x=date, y=zeroResult, color=group)) +
+    geom_line() +
+    geom_point() +
+    ylim(0,1) +
+    labs(x = "Data", y = "zero results rate", title="Buscas sem resultado", subtitle="Por grupo", color="Grupo")
+```
+
+Neste caso não foi possível observar uma diferenciação clara entre os grupos como a vista para o _clickthrough rate_. Os dois grupos apresentam comportamentos bem semelhantes mantendo _zero results rate_ baixo para todos dos dias.
+
+## Como a duração da sessão varia entre os grupos?
 
 ```{r}
 buscas %>%
-    mutate(date = round_date(session_start_date, unit = "day"),
-           isZero= ifelse(results > 0, 0, 1)) %>%
-    group_by(group, date, session_id) %>%
-    summarise(isZero = sum(isZero)) %>% 
-    group_by(group, date) %>%
-    summarise(zeroResults = sum(isZero)/n()) %>% 
-    ggplot(aes(x=date, y=zeroResults, color=group)) +
-    geom_line() +
-    geom_point()
+    filter(!is.na(session_length), session_length > 0) %>%
+    group_by(session_id, group) %>%
+    summarise(session_length=first(session_length),
+              num_clicks= sum(num_clicks)) %>%
+    ggplot(aes(x=group, y=log10(session_length))) +
+    geom_boxplot() +
+    labs(x = "Grupo", y = "Duração da sessão (log10)", title="Duração da sessão", subtitle="Por grupo")
+
 ```
 
+O gráfico acima exibe a duração da sessão por grupo (foi utilizado log10 para facilitar a visualização dos dados). Vê-se que o as sessões do grupo A são ligeiramente mais longas que as sessões do grupo B, mas essa diferença não é muito grande e as distribruições também são parecidas. 
 
-## Let session length be approximately the time between the first event and the last event in a session. Choose a variable from the dataset and describe its relationship to session length. Visualize the relationship.
+
 

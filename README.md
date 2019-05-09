@@ -1,3 +1,6 @@
+O relatório está publicado no [link](http://rpubs.com/hugogbs/494622).
+
+
 # Sessões, buscas e navegação na wikimedia
 
 Este repo é a semente para uma análise de padrões de busca e navegação em páginas de projetos da wikimedia (provavelmente wikipedia).
