@@ -1,0 +1,129 @@
+---
+title: "L3P5: p-valores x ICs"
+author: "Hugo Gabriel"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(perm)
+library(boot)
+library(broom)
+theme_set(theme_bw())
+```
+
+
+O PROBLEMA 
+Considerando que os dados da wikimedia que usamos no Laboratório 2, faça uma inferência sobre como é, na população de todas as sessões do site: 
+1. A diferença entre o clickthrough rate dos grupos A e B; e 
+2. A diferença na proporção buscas com zero resultados nos grupos A e B
+
+O QUE PRECISA SER FEITO
+Você deve produzir, para os pontos 1 e 2 acima: 
+a. Um parágrafo de resposta contendo os números necessários e explicando a sua resposta usando testes de hipótese via pemutação. O parágrafo deve ser estilo o que você colocaria em um artigo - claro, formal e contendo as estatísticas e termos necessários (p-valor, se foram usadas permutações, qual era a estatística do teste, etc.). 
+b. Um parágrafo de resposta contendo os números necessários e explicando a sua resposta usando ICs. O parágrafo deve ser estilo o que você colocaria em um artigo - claro, formal e contendo as estatísticas e termos necessários (nível de confiança, limites do IC, etc.). 
+c. Um parágrafo que comenta se/como os pontos a e b acima concordam, e que compara os dois parágrafos em termos de informação e utilidade para alguém tomando decisões na wikimedia.
+
+
+```{r}
+buscas <- read_csv("../data/search_data.csv")
+
+buscas <- buscas %>%
+    mutate(day = round_date(session_start_date, unit = "day")) %>%
+    group_by(group, day) %>%
+    summarise(cr_mean = mean(sum(num_clicks > 0)/n()), 
+              zero_results = sum(results == 0)/n())
+
+```
+
+```{r}
+cr_grupo_a <- buscas %>%
+    filter(group == "a") %>%
+    pull(cr_mean)
+
+cr_grupo_b <- buscas %>%
+    filter(group == "b") %>%
+    pull(cr_mean)
+```
+
+```{r}
+zr_grupo_a <- buscas %>%
+    filter(group == "a") %>%
+    pull(zero_results)
+
+zr_grupo_b <- buscas %>%
+    filter(group == "b") %>%
+    pull(zero_results)
+```
+
+```{r}
+permTS(cr_grupo_a, cr_grupo_b)
+```
+
+```{r}
+theta_diff_grupos <- function(d,i){
+    grupos = d %>%
+        slice(i) %>%
+        group_by(group) %>%
+        summarise(mean = mean(cr_mean))
+    
+    grupo_a = grupos %>% filter(group == "a") %>% pull(mean)
+    grupo_b = grupos %>% filter(group == "b") %>% pull(mean)
+    grupo_a - grupo_b
+}
+
+theta_c_grupos = theta_diff_grupos(buscas, 1:NROW(buscas))
+
+booted <- boot(data = buscas, 
+               statistic = theta_diff_grupos, 
+               R = 4000)
+
+ci = tidy(booted, 
+          conf.level = .95,
+          conf.method = "bca",
+          conf.int = TRUE)
+
+glimpse(ci)
+```
+
+**A diferença entre clickthrough rate dos grupos A e B:** 
+
+    O teste de hipótese foi realizado com aproximação assintótica, e resultou em um p-valor de 5.852e-05, que é muito abaixo do valor convencionado de 0.05 e com isso podemos assumir que existe uma diferença entre a média de clique do grupo A - média dde cliques do grupo B, na nossa amostra essa média é 0.1372949.
+    Já o teste utilizando intervalos de confiança foi realizado com 95% de confiança e a média foi de 0.1372949 com IC = [0.122606, 0.1557962]. Resultado este que concorda com o teste de hipótese, mas neste caso, temos mais informação sobre o nosso resultado, uma vez que temos o IC e podemos dizer que a média estará, em 95% das vezes, estará contida neste intervalo.
+
+    
+```{r}
+permTS(zr_grupo_a, zr_grupo_b)
+```
+
+```{r}
+theta_diff_grupos_zr <- function(d,i){
+    grupos = d %>%
+        slice(i) %>%
+        group_by(group) %>%
+        summarise(mean_zr = mean(zero_results))
+    
+    grupo_a = grupos %>% filter(group == "a") %>% pull(mean_zr)
+    grupo_b = grupos %>% filter(group == "b") %>% pull(mean_zr)
+    grupo_a - grupo_b
+}
+theta_c_grupos_zr = theta_diff_grupos_zr(buscas, 1:NROW(buscas))
+
+booted_zr <- boot(data = buscas, 
+               statistic = theta_diff_grupos_zr, 
+               R = 4000)
+
+ci_zr = tidy(booted_zr, 
+          conf.level = .95,
+          conf.method = "bca",
+          conf.int = TRUE)
+
+glimpse(ci_zr)
+```
+    
+**A diferença na proporção buscas com zero resultados nos grupos A e B:**
+    No teste hipótese obtivemos um p-valor de 0.6801 que, considerando um limiar de 5% para o p-valor, nos leva a aceitar a hipótese nula de que não há diferença relevante entre os dois grupos. A média amostral da diferença é de -0.00186383 (Grupo A - Grupo B).
+    O intervalo de confiança foi calculado com 95% de confiança e resultou na média -0.00186383 e com CI = [-0.009502404, 0.006023015]. Neste caso percebemos que podemos ter (em 95% dos) casos que o grupo A tem mais buscas com zero resultados que o grupo B ou o contrário e ainda casos em que não existe diferença, deste modo, nosso resultado concorda com o teste de hipótese no sentido que não é possível concluir que o um grupo tem mais zero resultados que o outro.
